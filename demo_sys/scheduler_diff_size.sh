@@ -1,0 +1,55 @@
+#!/bin/bash
+#SBATCH --job-name=2_diff
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:a100:2
+#SBATCH --mem=100G
+#SBATCH --time=0-7:00:00
+#SBATCH --cpus-per-task=16                    # 可选：你想给每个任务分配多少 CPU
+#SBATCH --output=sbatch_logs/parrot_%j.out           # 输出日志
+#SBATCH --error=sbatch_logs/parrot_%j.err            # 错误日志
+#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --mail-user=jsb5jd@virginia.edu
+
+# 初始化环境
+source ~/anaconda3/etc/profile.d/conda.sh
+
+conda activate llava
+
+# 切换到项目目录（可选）
+cd /scratch/jsb5jd/LLaVA-NeXT/demo_a_sys
+
+mkdir -p sbatch_logs
+
+echo "Scheduler started at: $(date)"
+
+# 定义batch size序列：从40开始，每次增加40，直到520
+image_sizes=(320 384 448 512 576 640 704 768 832 896 960 1024 1088 1152 1216 1280)
+# batch_sizes=(4 8)
+
+# 循环执行每个batch size
+for image_size in "${image_sizes[@]}"; do
+    echo "=========================================="
+    echo "Starting image size: $image_size"
+    echo "Time: $(date)"
+    echo "=========================================="
+    
+    # 带错误处理的调用
+    if ! bash run_img_size.sh $image_size; then
+        echo "Image size $image_size failed at $(date), skipping to next."
+        continue
+    fi
+    
+    # 等待一段时间再开始下一个batch size（可选）
+    # 这样可以避免GPU资源冲突，让系统有时间清理
+    echo "Waiting 10 seconds before next batch size..."
+    sleep 10
+    
+    echo "Completed image size: $image_size"
+    echo "=========================================="
+done
+
+# 记录调度结束时间
+SCHEDULER_END_TIME=$(date +%Y%m%d_%H%M%S)
+echo "Scheduler completed at: $SCHEDULER_END_TIME"
+echo "All image sizes have been processed!"
+echo "Image sizes tested: ${image_sizes[*]}" 
